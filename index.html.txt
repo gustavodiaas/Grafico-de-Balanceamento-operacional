@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise GBO - Arquivo Único</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(var(--border))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: "#60a5fa", /* Azul Bebê forte */
+                        secondary: "#dbeafe", /* Azul Bebê claro */
+                        destructive: "#ef4444",
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --border: 214.3 31.8% 91.4%;
+        }
+        .dark {
+            --background: 222.2 84% 4.9%;
+            --foreground: 210 40% 98%;
+            --card: 222.2 84% 4.9%;
+            --border: 217.2 32.6% 17.5%;
+        }
+        body {
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .card {
+            background-color: hsl(var(--card));
+            border: 1px solid hsl(var(--border));
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+        /* Barras do Gráfico */
+        .bar-container {
+            transition: width 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <header class="max-w-6xl mx-auto mb-8 flex justify-between items-center card p-4">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg text-blue-500">
+                <i data-lucide="bar-chart-3" class="w-8 h-8"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
+                    Análise GBO
+                </h1>
+                <p class="text-xs text-gray-500">Versão Simplificada (Arquivo Único)</p>
+            </div>
+        </div>
+        <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+            <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-yellow-400"></i>
+        </button>
+    </header>
+
+    <main class="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        <div class="xl:col-span-1 space-y-6">
+            <div class="card p-6 space-y-4">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-400"></span> Cálculo Takt Time
+                </h2>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-medium block mb-1">Tempo Turno (Horas)</label>
+                        <input type="number" id="shiftTime" value="8" class="w-full p-2 rounded border bg-transparent" oninput="calculate()">
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium block mb-1">Demanda Diária</label>
+                        <input type="number" id="demand" value="100" class="w-full p-2 rounded border bg-transparent" oninput="calculate()">
+                    </div>
+                </div>
+                
+                <div id="taktResult" class="hidden p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 text-sm">
+                    <strong>Takt Time:</strong> <span id="taktValue">0</span> min/peça
+                </div>
+            </div>
+
+            <div class="card p-6 space-y-4">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-400"></span> Nova Operação
+                </h2>
+                
+                <div>
+                    <label class="text-xs font-medium block mb-1">Nome da Operação</label>
+                    <input type="text" id="opName" placeholder="Ex: Montagem" class="w-full p-2 rounded border bg-transparent">
+                </div>
+                
+                <div>
+                    <label class="text-xs font-medium block mb-1">Tempo (Minutos)</label>
+                    <input type="number" id="opTime" placeholder="0.0" class="w-full p-2 rounded border bg-transparent">
+                </div>
+
+                <button onclick="addOperation()" class="w-full py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2 font-medium">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Adicionar
+                </button>
+            </div>
+
+            <button onclick="exportPDF()" class="w-full py-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition flex items-center justify-center gap-2">
+                <i data-lucide="download" class="w-4 h-4"></i> Baixar Relatório (PDF)
+            </button>
+        </div>
+
+        <div class="xl:col-span-2 space-y-6" id="reportArea">
+            
+            <div class="card p-6 bg-white dark:bg-gray-900">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-semibold">Gráfico de Balanceamento (GBO)</h2>
+                    <div class="text-xs text-gray-500 flex gap-4">
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-400 rounded-sm"></span> Normal</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-red-500 rounded-sm"></span> Gargalo (> Takt)</span>
+                    </div>
+                </div>
+
+                <div class="relative h-64 border-l border-b border-gray-300 dark:border-gray-700 flex items-end gap-2 px-2 pb-0" id="chartContainer">
+                    <div class="absolute inset-0 flex items-center justify-center text-gray-400 text-sm" id="emptyState">
+                        Adicione operações para ver o gráfico
+                    </div>
+                    
+                    <div id="taktLine" class="absolute left-0 right-0 border-t-2 border-red-500 border-dashed hidden z-10 flex items-end justify-end">
+                        <span class="text-red-500 text-xs bg-white dark:bg-gray-900 px-1 -mt-5">Takt</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="font-semibold mb-4">Detalhamento</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-gray-500 border-b dark:border-gray-700">
+                            <tr>
+                                <th class="py-2">Operação</th>
+                                <th class="py-2">Tempo</th>
+                                <th class="py-2">Status</th>
+                                <th class="py-2 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="opList">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Inicializa ícones
+        lucide.createIcons();
+
+        // Estado da Aplicação
+        let operations = [];
+        let taktTime = 0;
+
+        // Função de Tema (Dark/Light)
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        // Cálculo do Takt Time
+        function calculate() {
+            const shift = parseFloat(document.getElementById('shiftTime').value) || 0;
+            const demand = parseFloat(document.getElementById('demand').value) || 0;
+
+            if (shift > 0 && demand > 0) {
+                // Converte horas para minutos e divide
+                taktTime = (shift * 60) / demand;
+                
+                document.getElementById('taktResult').classList.remove('hidden');
+                document.getElementById('taktValue').innerText = taktTime.toFixed(2);
+                renderChart(); // Atualiza gráfico se mudar o Takt
+            } else {
+                taktTime = 0;
+                document.getElementById('taktResult').classList.add('hidden');
+            }
+        }
+
+        // Adicionar Operação
+        function addOperation() {
+            const nameInput = document.getElementById('opName');
+            const timeInput = document.getElementById('opTime');
+            
+            const name = nameInput.value.trim();
+            const time = parseFloat(timeInput.value);
+
+            if (!name || isNaN(time) || time <= 0) {
+                alert("Por favor, preencha o nome e um tempo válido.");
+                return;
+            }
+
+            operations.push({ id: Date.now(), name, time });
+            
+            // Limpa campos
+            nameInput.value = '';
+            timeInput.value = '';
+            nameInput.focus();
+
+            renderAll();
+        }
+
+        // Remover Operação
+        function removeOperation(id) {
+            operations = operations.filter(op => op.id !== id);
+            renderAll();
+        }
+
+        // Renderiza tudo (Tabela e Gráfico)
+        function renderAll() {
+            renderTable();
+            renderChart();
+        }
+
+        // Renderiza Tabela
+        function renderTable() {
+            const tbody = document.getElementById('opList');
+            tbody.innerHTML = '';
+
+            operations.forEach(op => {
+                const isGargalo = taktTime > 0 && op.time > taktTime;
+                const statusHtml = isGargalo 
+                    ? `<span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">Gargalo</span>`
+                    : `<span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">OK</span>`;
+
+                const tr = document.createElement('tr');
+                tr.className = "border-b dark:border-gray-700 last:border-0";
+                tr.innerHTML = `
+                    <td class="py-3 font-medium">${op.name}</td>
+                    <td class="py-3">${op.time.toFixed(2)} min</td>
+                    <td class="py-3">${statusHtml}</td>
+                    <td class="py-3 text-right">
+                        <button onclick="removeOperation(${op.id})" class="text-red-500 hover:text-red-700">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons(); // Recarrega ícones novos
+        }
+
+        // Renderiza Gráfico (Manual com CSS)
+        function renderChart() {
+            const container = document.getElementById('chartContainer');
+            const emptyState = document.getElementById('emptyState');
+            const taktLine = document.getElementById('taktLine');
+
+            // Remove barras antigas (mantém emptyState e taktLine)
+            Array.from(container.children).forEach(child => {
+                if (child.id !== 'emptyState' && child.id !== 'taktLine') {
+                    container.removeChild(child);
+                }
+            });
+
+            if (operations.length === 0) {
+                emptyState.style.display = 'flex';
+                taktLine.classList.add('hidden');
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            // Define altura máxima (Maior tempo ou Takt time + margem)
+            const maxTime = Math.max(...operations.map(o => o.time), taktTime * 1.2 || 0);
+
+            // Desenha linha do Takt
+            if (taktTime > 0) {
+                taktLine.classList.remove('hidden');
+                const taktHeightPercent = (taktTime / maxTime) * 100;
+                taktLine.style.bottom = `${taktHeightPercent}%`;
+            } else {
+                taktLine.classList.add('hidden');
+            }
+
+            // Desenha Barras
+            operations.forEach(op => {
+                const heightPercent = (op.time / maxTime) * 100;
+                const isGargalo = taktTime > 0 && op.time > taktTime;
+                const colorClass = isGargalo ? 'bg-red-500' : 'bg-blue-400';
+
+                const bar = document.createElement('div');
+                bar.className = "flex flex-col items-center justify-end h-full flex-1 group relative";
+                bar.innerHTML = `
+                    <div class="w-full max-w-[50px] ${colorClass} rounded-t transition-all duration-500 hover:opacity-80 relative" style="height: ${heightPercent}%">
+                        <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                            ${op.time}
+                        </span>
+                    </div>
+                    <span class="text-[10px] text-gray-500 mt-1 truncate w-full text-center">${op.name}</span>
+                `;
+                container.appendChild(bar);
+            });
+        }
+
+        // Exportar PDF
+        window.jsPDF = window.jspdf.jsPDF;
+
+        async function exportPDF() {
+            const element = document.getElementById('reportArea');
+            const btn = document.querySelector('button[onclick="exportPDF()"]');
+            
+            // Feedback visual
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "Gerando PDF...";
+            btn.disabled = true;
+
+            try {
+                // Força tema claro para o PDF ficar bonito
+                const wasDark = document.documentElement.classList.contains('dark');
+                if (wasDark) document.documentElement.classList.remove('dark');
+
+                const canvas = await html2canvas(element, { scale: 2 });
+                const imgData = canvas.toDataURL('image/png');
+                
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                pdf.setFontSize(18);
+                pdf.text("Relatório GBO", 10, 15);
+                pdf.setFontSize(10);
+                pdf.text(`Gerado em: ${new Date().toLocaleDateString()}`, 10, 20);
+
+                pdf.addImage(imgData, 'PNG', 0, 30, pdfWidth, pdfHeight);
+                pdf.save(`gbo-relatorio-${Date.now()}.pdf`);
+
+                // Restaura tema
+                if (wasDark) document.documentElement.classList.add('dark');
+
+            } catch (err) {
+                console.error(err);
+                alert("Erro ao gerar PDF");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Roda cálculo inicial
+        calculate();
+    </script>
+</body>
+</html>
